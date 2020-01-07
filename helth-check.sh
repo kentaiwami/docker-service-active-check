@@ -17,7 +17,7 @@ send_notification() {
         text="${text}:x: *${ng_list[$index]}* ${cause_list[$index]} \n\n"
     done
 
-    channel=${channel:-'#docker'}
+    channel=${channel:-'#helth-check'}
     botname=${botname:-'helth-check'}
     emoji=${emoji:-':heartpulse:'}
     message=`echo ${text}`
