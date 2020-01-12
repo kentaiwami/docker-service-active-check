@@ -28,7 +28,7 @@ send_notification() {
         \"text\": \"${message}\"
     }"
 
-    curl -s -S -X POST -d "${payload}" ${SLACK_NOTIFICATION_URL} > /dev/null
+    curl -s -S -X POST -d "${payload}" ${SLACK_HEALTH_CHECK_URL} > /dev/null
 }
 
 run_docker_process_command() {
