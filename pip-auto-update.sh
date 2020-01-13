@@ -1,23 +1,30 @@
 python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
 is_rollback_list=()
-text_list=()
+diff_text_list=()
 
-create_text() {
-    text=""
+create_diff_text() {
+    diff_text=""
     diff_list=$1
+    index=$2
 
-    for index in "${!python_service_name_list[@]}"; do
-        if [ ${is_rollback_list[index]} = 1 ]; then
-            text="${text}*${python_service_name_list[index]}*\n\`rollback\`\n"
-        else
-            text="${text}*${python_service_name_list[index]}*\n\`\`\`"
+    if [[ ${is_rollback_list[index]} = 1 ]]; then
+        diff_text="${diff_text}\`rollback\`\n"
+    else
+        if [[ -n "${diff_list}" ]]; then
+            diff_text="${diff_text}\`\`\`"
             for diff in ${diff_list[@]}; do
-                text="${text}${diff}\n"
+                diff_text="${diff_text}${diff}\n"
             done
 
-            text="${text}\`\`\`\n\n"
+            diff_text="${diff_text}\`\`\`\n\n"
         fi
-    done
+    fi
+
+    echo $diff_text
+}
+
+create_error_pkg_info_text() {
+    text=""
 }
 
 get_error_variable_name() {
@@ -25,50 +32,55 @@ get_error_variable_name() {
     echo "${replaced_python_service_name}_error_pkg_list"
 }
 
+
+create_notification_text() {
+    text=""
+
+    for index in "${!python_service_name_list[@]}"; do
+        text="${text}*${python_service_name_list[index]}*\n"
+        error_variable_name=`get_error_variable_name "${python_service_name_list[index]}"`
+
+        for error_pkg_info in `eval echo '${'${error_variable_name}'[@]}'`; do
+            text="${text}${error_pkg_info}\n\n"
+        done
+
+        for diff_text in ${diff_text_list[@]}; do
+            text="${text}${diff_text}\n"
+        done
+    done
+
+    echo $text
+}
+
 send_notification() {
-    echo ${portfolio_app_error_pkg_list[@]}
+    text=$1
 
-    echo "********************************"
-    echo ${is_rollback_list[@]}
-    echo ${text_list[@]}
+    # echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<,"
+    # echo $text
 
-    # for python_service_name in ${python_service_name_list[@]}; do
-        # variable_name=`get_error_variable_name "${python_service_name}"`
-        # 
-    # done
-    # text=""
-
-    # for ok_service_name in ${ok_list[@]}; do
-    #     text="${text}:white_check_mark: *${ok_service_name}* \n\n"
-    # done
-
-    # for index in "${!ng_list[@]}"; do
-    #     text="${text}:x: *${ng_list[$index]}* ${cause_list[$index]} \n\n"
-    # done
-
-    # channel=${channel:-'#health-check'}
-    # botname=${botname:-'health-check'}
-    # emoji=${emoji:-':heartpulse:'}
-    # message=`echo ${text}`
-    # payload="payload={
-    #     \"channel\": \"${channel}\",
-    #     \"username\": \"${botname}\",
-    #     \"icon_emoji\": \"${emoji}\",
-    #     \"text\": \"${message}\"
-    # }"
+    channel=${channel:-'#health-check'}
+    botname=${botname:-'health-check'}
+    emoji=${emoji:-':heartpulse:'}
+    message=`echo ${text}`
+    payload="payload={
+        \"channel\": \"${channel}\",
+        \"username\": \"${botname}\",
+        \"icon_emoji\": \"${emoji}\",
+        \"text\": \"${message}\"
+    }"
 
     # curl -s -S -X POST -d "${payload}" ${SLACK_HEALTH_CHECK_URL} > /dev/null
 }
 
-for python_service_name in ${python_service_name_list[@]}; do
-    docker_exec_command="docker exec ${python_service_name}"
+for index in "${!python_service_name_list[@]}"; do
+    docker_exec_command="docker exec ${python_service_name_list[index]}"
 
     # 現在のインストール状態を一時保存（通知・pip check時のロールバック用）
     now_pkg_list=$(${docker_exec_command} pip list --format=freeze)
     # now_pkg_list=(`echo $now_pkg_list`)
 
     # サービスごとにエラーが起きたパッケージ名を保存
-    error_variable_name=`get_error_variable_name "${python_service_name}"`
+    error_variable_name=`get_error_variable_name "${python_service_name_list[index]}"`
 
     ${docker_exec_command} pip install -U pip
 
@@ -83,10 +95,8 @@ for python_service_name in ${python_service_name_list[@]}; do
         if [ -n "$update_error" ]; then
             ${docker_exec_command} pip install "${outdated_pkg}==${now_version}"
 
-            tmp_pkg_info="${outdated_pkg}==${now_version} "
-            tmp_err_msg="\`Error Dependency\`"
-            join=${tmp_pkg_info}''${tmp_err_msg}
-            eval ${error_variable_name}+=\(\"'${join}'\"\)
+            tmp_pkg_info="${outdated_pkg}==${now_version}--->ErrorDependency"
+            eval ${error_variable_name}+=\(\"${tmp_pkg_info}\"\)
         fi
     done
 
@@ -100,13 +110,30 @@ for python_service_name in ${python_service_name_list[@]}; do
             ${docker_exec_command} pip install $now_pkg
         done
         is_rollback_list+=(1)
-        text_list+=("")
+        diff_text_list+=("")
     else
         is_rollback_list+=(0)
         updated_pkg_list=$(${docker_exec_command} pip list --format=freeze)
-        diff=$(diff -u <(echo "${now_pkg_list[@]}") <(echo "${updated_pkg_list[@]}") | grep -E '(^-\w|^\+\w)')
-        text_list+=(`create_text "$diff"`)
+        diff=$(diff -u <(echo "${now_pkg_list[@]}") <(echo "${updated_pkg_list[@]}") | grep -E '(^-\w|^\+\w)' | sort)
+        diff_text_list+=(`create_diff_text "$diff" "$index"`)
+
+        # echo ${updated_pkg_list[@]}
+        # echo "+*****************************:"
+        # echo ${now_pkg_list[@]}
+        # echo "+*****************************:"
+        # echo $diff
+        # echo "+*****************************:"
+        # echo ${diff_text_list[@]}
+        
     fi
 
-    send_notification
+    notification_text=$(create_notification_text)
+    # echo "+*****************************:"
+    echo $notification_text
+    # echo "+*****************************:"
+    # send_notification $notification_text
+    exit
 done
+
+notification_text=`create_notification_text`
+send_notification $notification_text
