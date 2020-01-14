@@ -113,7 +113,7 @@ send_notification() {
     curl -s -S -X POST -d "${payload}" ${SLACK_AUTO_UPDATE_URL} > /dev/null
 }
 
-main() {
+update() {
     local index=$1
     local outdated_pkg
     local error_pkg_info_list=()
@@ -186,7 +186,7 @@ init_tmp_files
 
 command=""
 for index in "${!python_service_name_list[@]}"; do
-    command="${command}main ${index}&"
+    command="${command}update ${index}&"
 done
 
 eval $command
