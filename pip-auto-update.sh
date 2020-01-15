@@ -182,16 +182,72 @@ update() {
     fi
 }
 
-init_tmp_files
+# dockerの再起動を行う
+# 返り値：サービスごとのコマンド実行ステータス。サービスの順番と同様。（0:成功, 1:失敗）
+restart_docker() {
+    local docker_compose_file_path
+    local pids=()
+    local flag=()
+    local pid
 
-command=""
-for index in "${!python_service_name_list[@]}"; do
-    command="${command}update ${index}&"
-done
+    for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
+        cd $docker_compose_file_path && docker-compose restart &
+        pids+=($!)
+    done
 
-eval $command
-wait
+    for pid in ${pids[@]}; do
+        wait $pid
+        if [ $? -eq 0 ]; then
+            flag+=(0)
+        else
+            flag+=(1)
+        fi
+    done
 
-send_notification $(create_notification_text)
+    echo ${flag[@]}
+}
 
-remove_tmp_files
+# docker再起動の結果をもとに、通知用のテキストを生成する。
+# 返り値：生成したテキスト
+create_docker_restart_status_text() {
+    local statuses=("$@")
+    local text="\n\n*\`docker restart status\`*\n\n"
+    local index
+
+    for index in ${!statuses[@]}; do
+        local mark=""
+        if [ ${statuses[index]} -eq 0 ]; then
+            mark=":white_check_mark:"
+        else
+            mark=":x:"
+        fi
+
+        text="${text}${mark} *${python_service_name_list[index]}*\n\n"
+    done
+
+    echo $text
+}
+
+# TODO:コメントとlocal
+main() {
+    init_tmp_files
+
+    command=""
+    for index in "${!python_service_name_list[@]}"; do
+        command="${command}update ${index}&"
+    done
+
+    eval $command
+    wait
+
+    send_notification $(create_notification_text)
+
+    local restart_docker_statues=$(restart_docker)
+
+    local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
+
+    send_notification "$docker_restart_status_text"
+}
+
+main
+
