@@ -228,11 +228,12 @@ create_docker_restart_status_text() {
     echo $text
 }
 
-# TODO:コメントとlocal
 main() {
+    local command=""
+    local index
+
     init_tmp_files
 
-    command=""
     for index in "${!python_service_name_list[@]}"; do
         command="${command}update ${index}&"
     done
@@ -250,4 +251,3 @@ main() {
 }
 
 main
-
