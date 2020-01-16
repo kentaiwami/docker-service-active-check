@@ -240,8 +240,17 @@ update_requirements() {
 git_push() {
     local index=$1
     local folder_path=${REQUIREMENTS_FOLDER_PATH_LIST[index]}
+    local command_status
 
-    cd "$folder_path" && git add "requirements.txt"
+    cd "$folder_path" && git add "requirements.txt" && git commit -m "pip-auto-update"
+
+    command_status=$?
+
+    if [ $command_status -eq 0 ]; then
+        git push
+    else
+        git checkout .
+    fi
 }
 
 main() {
@@ -266,6 +275,4 @@ main() {
     send_notification "$docker_restart_status_text"
 }
 
-# main
-
-git_push 0
+main
