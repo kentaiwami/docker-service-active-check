@@ -180,6 +180,8 @@ update() {
 
         write_csv error_pkg $index $error_pkg_info_text
     fi
+
+    update_requirements $index
 }
 
 # dockerの再起動を行う
@@ -228,6 +230,13 @@ create_docker_restart_status_text() {
     echo $text
 }
 
+update_requirements() {
+    local index=$1
+    local file_path=${REQUIREMENTS_FILE_PATH_LIST[index]}
+
+    docker exec ${python_service_name_list[index]} pip freeze > $file_path
+}
+
 main() {
     local command=""
     local index
@@ -250,6 +259,4 @@ main() {
     send_notification "$docker_restart_status_text"
 }
 
-# main
-
-send_notification hogehoge
+main
