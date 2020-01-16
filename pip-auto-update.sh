@@ -101,12 +101,12 @@ send_notification() {
     local text=$1
     local channel=${channel:-'#auto-update'}
     local botname=${botname:-'pip-auto-update'}
-    local emoji=${emoji:-':heartpulse:'}
+    local icon_url=${icon_url:-'https://img.icons8.com/color/480/000000/python.png'}
     local message=`echo ${text}`
     local payload="payload={
         \"channel\": \"${channel}\",
         \"username\": \"${botname}\",
-        \"icon_emoji\": \"${emoji}\",
+        \"icon_url\": \"${icon_url}\",
         \"text\": \"${text}\"
     }"
 
@@ -250,4 +250,6 @@ main() {
     send_notification "$docker_restart_status_text"
 }
 
-main
+# main
+
+send_notification hogehoge
