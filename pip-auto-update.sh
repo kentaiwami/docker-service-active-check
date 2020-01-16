@@ -182,6 +182,7 @@ update() {
     fi
 
     update_requirements $index
+    git_push $index
 }
 
 # dockerの再起動を行う
