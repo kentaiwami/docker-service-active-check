@@ -232,9 +232,16 @@ create_docker_restart_status_text() {
 
 update_requirements() {
     local index=$1
-    local file_path=${REQUIREMENTS_FILE_PATH_LIST[index]}
+    local file_path="${REQUIREMENTS_FOLDER_PATH_LIST[index]}requirements.txt"
 
     docker exec ${python_service_name_list[index]} pip freeze > $file_path
+}
+
+git_push() {
+    local index=$1
+    local folder_path=${REQUIREMENTS_FOLDER_PATH_LIST[index]}
+
+    cd "$folder_path" && git add "requirements.txt"
 }
 
 main() {
@@ -259,4 +266,6 @@ main() {
     send_notification "$docker_restart_status_text"
 }
 
-main
+# main
+
+git_push 0
