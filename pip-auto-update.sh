@@ -115,9 +115,19 @@ send_notification() {
 
 update() {
     local index=$1
+    local is_skip=$2
     local outdated_pkg
     local error_pkg_info_list=()
     local docker_exec_command="docker exec ${python_service_name_list[index]}"
+
+    # docker execが失敗するサービスは以降の処理を実施しない
+    if [ $is_skip -eq 1 ]; then
+        write_csv error_pkg $index ""
+        write_csv is_rollback $index 0
+        write_csv diff_text $index \\n\`\`\`NODIFF\`\`\`\\n
+        send_notification "\n:x: ${python_service_name_list[index]} is Skip\n"
+        exit
+    fi
 
     # 現在のインストール状態を一時保存（通知・pip check時のロールバック用）
     local now_pkg_list=$(${docker_exec_command} pip list --format=freeze)
@@ -150,7 +160,7 @@ update() {
             ${docker_exec_command} pip install $now_pkg
         done
         write_csv is_rollback $index 1
-        write_csv diff_text $index \n\`\`\`NODIFF\`\`\`\n
+        write_csv diff_text $index \\n\`\`\`NODIFF\`\`\`\\n
     else
         write_csv is_rollback $index 0
         local updated_pkg_list=$(${docker_exec_command} pip list --format=freeze)
@@ -236,6 +246,14 @@ update_requirements() {
     docker exec ${python_service_name_list[index]} pip freeze > $file_path
 }
 
+get_commit_link() {
+    local index=$1
+    local folder_path=${REQUIREMENTS_FOLDER_PATH_LIST[index]}
+    local latest_commit=$(cd ${folder_path} && git show -s --format=%H)
+
+    echo "https://github.com/kentaiwami/${REPOSITORY_NAME_LIST[index]}/commit/${latest_commit}"
+}
+
 git_push() {
     local index=$1
     local folder_path=${REQUIREMENTS_FOLDER_PATH_LIST[index]}
@@ -245,23 +263,44 @@ git_push() {
 
     command_status=$?
 
+    local commit_link=$(get_commit_link $index)
+
     if [ $command_status -eq 0 ]; then
         git push
-        send_notification "\n:white_check_mark: GitHub pushed ${folder_path}\n"
+        send_notification "\n:white_check_mark: GitHub pushed ${commit_link}\n"
     else
         git checkout .
-        send_notification "\n:x: git checkout ${folder_path}\n"
+        send_notification "\n:x: git checkout ${commit_link}\n"
     fi
 }
 
+check_container() {
+    local is_running_list=()
+
+    for python_service_name in "${python_service_name_list[@]}"; do
+        docker exec ${python_service_name} pip freeze > /dev/null
+
+        if [ $? -eq 0 ]; then
+            is_running_list+=(0)
+        else
+            is_running_list+=(1)
+        fi
+    done
+
+    echo ${is_running_list[@]}
+}
+
 main() {
+    local result_check_container=$(check_container)
+    result_check_container=(`echo $result_check_container`)
+
     local command=""
     local index
 
     init_tmp_files
 
     for index in "${!python_service_name_list[@]}"; do
-        command="${command}update ${index}&"
+        command="${command}update ${index} ${result_check_container[index]} & "
     done
 
     eval $command
