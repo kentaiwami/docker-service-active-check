@@ -76,7 +76,8 @@ create_diff_text() {
         fi
     fi
 
-    echo $diff_text
+    # 差分で使用される+記号を%20Bへ変換して出力
+    echo $diff_text | sed s/+/%2B/g
 }
 
 # 差分、エラー情報を通知用のテキストとして1つにまとめる。
@@ -89,8 +90,8 @@ create_notification_text() {
         local diff_text=$(get_value_from_csv diff_text $index 2)
 
         text="${text}*\`${python_service_name_list[index]}\`*\n"
-        text="${text}${err_pkg_info_text}"
-        text="${text}${diff_text}\n\n"
+        text="${text}${err_pkg_info_text}\n"
+        text="${text}${diff_text}\n"
     done
 
     echo $text
@@ -102,7 +103,6 @@ send_notification() {
     local channel=${channel:-'#auto-update'}
     local botname=${botname:-'pip-auto-update'}
     local icon_url=${icon_url:-'https://img.icons8.com/color/480/000000/python.png'}
-    local message=`echo ${text}`
     local payload="payload={
         \"channel\": \"${channel}\",
         \"username\": \"${botname}\",
