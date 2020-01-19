@@ -117,8 +117,6 @@ update() {
     local index=$1
     local outdated_pkg
     local error_pkg_info_list=()
-
-    # for index in "${!python_service_name_list[@]}"; do
     local docker_exec_command="docker exec ${python_service_name_list[index]}"
 
     # 現在のインストール状態を一時保存（通知・pip check時のロールバック用）
@@ -271,11 +269,14 @@ main() {
 
     send_notification $(create_notification_text)
 
-    local restart_docker_statues=$(restart_docker)
-
+    local cut_count=$((${#python_service_name_list[@]}+${#python_service_name_list[@]}-1))
+    local tmp_restart_docker_statues=$(restart_docker)
+    local restart_docker_statues=$(echo ${tmp_restart_docker_statues} | rev | cut -c 1-${cut_count} | rev)
     local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
 
     send_notification "$docker_restart_status_text"
+
+    remove_tmp_files
 }
 
 send_notification "*pip-auto-update START*"
