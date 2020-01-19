@@ -194,7 +194,7 @@ restart_docker() {
     local pid
 
     for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
-        cd $docker_compose_file_path && docker-compose restart &
+        cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
         pids+=($!)
     done
 
@@ -249,8 +249,10 @@ git_push() {
 
     if [ $command_status -eq 0 ]; then
         git push
+        send_notification "\n:white_check_mark: GitHub pushed ${folder_path}\n"
     else
         git checkout .
+        send_notification "\n:x: git checkout ${folder_path}\n"
     fi
 }
 
@@ -276,4 +278,6 @@ main() {
     send_notification "$docker_restart_status_text"
 }
 
+send_notification "*pip-auto-update START*"
 main
+send_notification "*pip-auto-update END*"
