@@ -1,6 +1,7 @@
 . ./.env
 
-python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
+# python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
+python_service_name_list=("portfolio-app")
 
 # 並列処理の結果を保存する一時ファイルを初期化する
 init_tmp_files() {
@@ -118,7 +119,8 @@ update() {
     local is_skip=$2
     local outdated_pkg
     local error_pkg_info_list=()
-    local docker_exec_command="docker exec ${python_service_name_list[index]}"
+    local docker_exec_command="docker exec -i ${python_service_name_list[index]} bash -c"
+    local python_module_command="python -m"
 
     # docker execが失敗するサービスは以降の処理を実施しない
     if [ $is_skip -eq 1 ]; then
@@ -130,40 +132,38 @@ update() {
     fi
 
     # 現在のインストール状態を一時保存（通知・pip check時のロールバック用）
-    local now_pkg_list=$(${docker_exec_command} pip list --format=freeze)
+    local now_pkg_list=$(${docker_exec_command} "${python_module_command} pip list --format=freeze")
 
-    ${docker_exec_command} pip install -U pip
-
-    local outdated_pkg_list=$(${docker_exec_command} pip list --outdated --format=freeze | awk -F "==" '{print $1}')
+    ${docker_exec_command} "${python_module_command} pip install -U pip"
+    local outdated_pkg_list=$(${docker_exec_command} "${python_module_command} pip list --outdated --format=freeze" | awk -F "==" '{print $1}')
     local outdated_pkg_list=(`echo $outdated_pkg_list`)
 
     for outdated_pkg in ${outdated_pkg_list[@]}; do
-        local now_version=$(${docker_exec_command} pip list | grep $outdated_pkg | awk -F " " '{print $2}')
-        local update_error=$(${docker_exec_command} pip install -U $outdated_pkg 2>&1 > /dev/null)
+        local now_version=$(${docker_exec_command} "${python_module_command} pip list" | grep $outdated_pkg | awk -F " " '{print $2}')
+        local update_error=$(${docker_exec_command} "${python_module_command} pip install -U $outdated_pkg" 2>&1 > /dev/null)
 
         # pip installでエラーが起きた場合はバージョンを戻す
         if [ -n "$update_error" ]; then
-            ${docker_exec_command} pip install "${outdated_pkg}==${now_version}"
+            ${docker_exec_command} "${python_module_command} pip install "${outdated_pkg}==${now_version}""
 
             local tmp_pkg_info="${outdated_pkg}==${now_version}--->ErrorDependency"
             error_pkg_info_list+=($tmp_pkg_info)
         fi
     done
 
-    ${docker_exec_command} pip check
+    ${docker_exec_command} "${python_module_command} pip check"
     status=$?
 
-    # 依存関係が解消されない場合は全てを戻す
+    status=1
+
+    # TODO:
+    # 依存関係が解消されない場合はrequirements.txtを更新せずに再起動で元に戻す
     if [ $status = 1 ]; then
-        ${docker_exec_command} pip freeze | xargs pip uninstall -y
-        for now_pkg in ${now_pkg_list[@]}; do
-            ${docker_exec_command} pip install $now_pkg
-        done
         write_csv is_rollback $index 1
         write_csv diff_text $index \\n\`\`\`NODIFF\`\`\`\\n
     else
         write_csv is_rollback $index 0
-        local updated_pkg_list=$(${docker_exec_command} pip list --format=freeze)
+        local updated_pkg_list=$(${docker_exec_command} "${python_module_command} pip list --format=freeze")
         local diff=$(diff -u <(echo "${now_pkg_list[@]}") <(echo "${updated_pkg_list[@]}") | grep -E '(^-\w|^\+\w)')
         local tmp_diff=`create_diff_text "$diff" "$index"`
 
@@ -187,10 +187,10 @@ update() {
         fi
 
         write_csv error_pkg $index $error_pkg_info_text
-    fi
 
-    update_requirements $index
-    git_push $index
+        update_requirements $index
+        git_push $index
+    fi
 }
 
 # dockerの再起動を行う
@@ -202,7 +202,8 @@ restart_docker() {
     local pid
 
     for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
-        cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
+        # cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
+        cd $docker_compose_file_path && docker-compose down && docker-compose up -d &
         pids+=($!)
     done
 
@@ -243,7 +244,7 @@ update_requirements() {
     local index=$1
     local file_path="${REQUIREMENTS_FOLDER_PATH_LIST[index]}requirements.txt"
 
-    docker exec ${python_service_name_list[index]} pip freeze > $file_path
+    docker exec -i ${python_service_name_list[index]} bash -c "python -m pip freeze" > $file_path
 }
 
 get_commit_link() {
@@ -266,10 +267,10 @@ git_push() {
     local commit_link=$(get_commit_link $index)
 
     if [ $command_status -eq 0 ]; then
-        git push
+        # git push
         send_notification "\n:white_check_mark: GitHub pushed ${commit_link}\n"
     else
-        git checkout .
+        # git checkout .
         send_notification "\n:x: git checkout ${commit_link}\n"
     fi
 }
@@ -278,7 +279,7 @@ check_container() {
     local is_running_list=()
 
     for python_service_name in "${python_service_name_list[@]}"; do
-        docker exec ${python_service_name} pip freeze > /dev/null
+        docker exec -i ${python_service_name} bash -c "python -m pip freeze > /dev/null"
 
         if [ $? -eq 0 ]; then
             is_running_list+=(0)
