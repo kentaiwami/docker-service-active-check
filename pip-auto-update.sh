@@ -1,7 +1,6 @@
 . ./.env
 
 python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
-# python_service_name_list=("portfolio-app")
 script_path=$(cd $(dirname $0); pwd)
 
 # 並列処理の結果を保存する一時ファイルを初期化する
@@ -70,8 +69,8 @@ aggregate_text_from_csv() {
 
         text="${text}*\`${python_service_name_list[index]}\`*\n"
 
-        if [ $is_rollback_text -eq 0 ]; then
-            text="${text}*is_rollback*\n"
+        if [ $is_rollback_text -eq 1 ]; then
+            text="${text}\`\`\`is_rollback\`\`\`\n"
         fi
 
         if [ -n "$err_pkg_text" ]; then
@@ -138,7 +137,7 @@ update() {
         if [ -n "$update_error" ]; then
             ${docker_exec_command} "${python_module_command} pip install "${outdated_pkg}==${now_version}""
 
-            local tmp_pkg_info="${outdated_pkg}==${now_version}--->ErrorDependency"
+            local tmp_pkg_info="${outdated_pkg}==${now_version}"
             error_pkg_info_list+=($tmp_pkg_info)
         fi
     done
@@ -151,19 +150,8 @@ update() {
         write_csv "is_rollback" $index 1
     else
         write_csv "is_rollback" $index 0
-        local error_pkg_info_text=""
 
-        # TODO: 関数として切り出し
-        if [ ${#error_pkg_info_list[@]} -ge 1 ]; then
-            error_pkg_info_text="${error_pkg_info_text}\`\`\`"
-
-            for error_pkg_info in ${error_pkg_info_list[@]}; do
-                error_pkg_info_text="${error_pkg_info_text}${error_pkg_info}\n"
-            done
-
-            error_pkg_info_text="${error_pkg_info_text}\`\`\`\n"
-        fi
-
+        local error_pkg_info_text=$(create_error_pkg_text ${error_pkg_info_list[@]})
         write_csv "error_pkg" $index $error_pkg_info_text
 
         update_requirements $index
@@ -180,8 +168,8 @@ restart_docker() {
     local pid
 
     for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
-        # cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
-        cd $docker_compose_file_path && docker-compose down && docker-compose up -d &
+        cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
+        # cd $docker_compose_file_path && docker-compose down && docker-compose up -d &
         pids+=($!)
     done
 
@@ -201,7 +189,7 @@ restart_docker() {
 # 返り値：生成したテキスト
 create_docker_restart_status_text() {
     local statuses=("$@")
-    local text="*\`docker restart status\`*\n"
+    local text="*\`docker restart status\`*\n\n"
     local index
 
     for index in ${!statuses[@]}; do
@@ -216,6 +204,23 @@ create_docker_restart_status_text() {
     done
 
     echo $text
+}
+
+create_error_pkg_text() {
+    local error_pkg_info_list=("$@")
+    local error_pkg_info_text=""
+
+    if [ ${#error_pkg_info_list[@]} -ge 1 ]; then
+        error_pkg_info_text="${error_pkg_info_text}\`\`\`【ErrorDependency】\n"
+
+        for error_pkg_info in ${error_pkg_info_list[@]}; do
+            error_pkg_info_text="${error_pkg_info_text}・${error_pkg_info}\n"
+        done
+
+        error_pkg_info_text="${error_pkg_info_text}\`\`\`"
+    fi
+
+    echo $error_pkg_info_text
 }
 
 update_requirements() {
@@ -248,11 +253,11 @@ git_push() {
     cd "$script_path"
 
     if [ $command_status -eq 0 ]; then
-        # git push
-        write_csv "git_push" $index ":white_check_mark: GitHub pushed ${commit_link}"
+        git push
+        write_csv "git_push" $index "\`\`\`【pushed】\n${commit_link}\`\`\`"
     else
-        # git checkout .
-        write_csv "git_push" $index ":x: git checkout ${commit_link}"
+        git checkout .
+        write_csv "git_push" $index "\`\`\`checkout\n${commit_link}\`\`\`"
     fi
 }
 
@@ -296,7 +301,7 @@ main() {
 
     send_notification "$updated_text$docker_restart_status_text"
 
-    # remove_tmp_files
+    remove_tmp_files
 }
 
 main
