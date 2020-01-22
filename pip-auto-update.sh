@@ -1,7 +1,8 @@
 . ./.env
 
-# python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
-python_service_name_list=("portfolio-app")
+python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
+# python_service_name_list=("portfolio-app")
+script_path=$(cd $(dirname $0); pwd)
 
 # 並列処理の結果を保存する一時ファイルを初期化する
 init_tmp_files() {
@@ -20,17 +21,19 @@ remove_tmp_files() {
 }
 
 # 第一引数のフラグをもとに一時ファイルのパスを取得する
-# 引数：$1（is_rollback, diff_text, error_pkg）
+# 引数：$1（is_rollback, error_pkg, git）
 get_file_path() {
     local flag=$1
     local file_path
 
     if [ $flag = "is_rollback" ]; then
         file_path=${TMP_FILE_LIST[0]}
-    elif [ $flag = "diff_text" ]; then
+    elif [ $flag = "error_pkg" ]; then
         file_path=${TMP_FILE_LIST[1]}
-    else
+    elif [ $flag = "git_push" ]; then
         file_path=${TMP_FILE_LIST[2]}
+    elif [ $flag = "skip" ]; then
+        file_path=${TMP_FILE_LIST[3]}
     fi
 
     echo $file_path
@@ -54,45 +57,36 @@ get_value_from_csv() {
     cat $file_path | awk -F , '$1 == '$index' {print '\$$column_num'}'
 }
 
-# 各サービスごとのパッケージ更新の差分のテキストを生成する。
-# rollbackした場合はrollbackとだけ出力する。
-# 引数　$1:差分の文字列（スペース区切り）, $2:index
-create_diff_text() {
-    local diff_text=""
-    local diff_list=$1
-    local index=$2
-    local diff
-    local is_rollback=$(get_value_from_csv is_rollback $index 2)
-
-    if [[ $is_rollback = 1 ]]; then
-        diff_text="${diff_text}\`rollback\`\n"
-    else
-        if [[ -n "${diff_list}" ]]; then
-            diff_text="${diff_text}\`\`\`"
-            for diff in ${diff_list[@]}; do
-                diff_text="${diff_text}${diff}\n"
-            done
-
-            diff_text="${diff_text}\`\`\`\n\n"
-        fi
-    fi
-
-    # 差分で使用される+記号を%20Bへ変換して出力
-    echo $diff_text | sed s/+/%2B/g
-}
-
-# 差分、エラー情報を通知用のテキストとして1つにまとめる。
-create_notification_text() {
+# スキップ、git、エラーパッケージ情報をcsvからまとめる
+aggregate_text_from_csv() {
     local text=""
     local index
 
     for index in "${!python_service_name_list[@]}"; do
-        local err_pkg_info_text=$(get_value_from_csv error_pkg $index 2)
-        local diff_text=$(get_value_from_csv diff_text $index 2)
+        local is_rollback_text=$(get_value_from_csv is_rollback $index 2)
+        local err_pkg_text=$(get_value_from_csv error_pkg $index 2)
+        local git_push_text=$(get_value_from_csv git_push $index 2)
+        local skip_text=$(get_value_from_csv skip $index 2)
 
         text="${text}*\`${python_service_name_list[index]}\`*\n"
-        text="${text}${err_pkg_info_text}\n"
-        text="${text}${diff_text}\n"
+
+        if [ $is_rollback_text -eq 0 ]; then
+            text="${text}*is_rollback*\n"
+        fi
+
+        if [ -n "$err_pkg_text" ]; then
+            text="${text}$err_pkg_text\n"
+        fi
+
+        if [ -n "$skip_text" ]; then
+            text="${text}$skip_text\n"
+        fi
+
+        if [ -n "$git_push_text" ]; then
+            text="${text}$git_push_text\n"
+        fi
+
+        text="${text}\n"
     done
 
     echo $text
@@ -124,15 +118,13 @@ update() {
 
     # docker execが失敗するサービスは以降の処理を実施しない
     if [ $is_skip -eq 1 ]; then
-        write_csv error_pkg $index ""
-        write_csv is_rollback $index 0
-        write_csv diff_text $index \\n\`\`\`NODIFF\`\`\`\\n
-        send_notification "\n:x: ${python_service_name_list[index]} is Skip\n"
+        write_csv "error_pkg" $index ""
+        write_csv "is_rollback" $index 0
+        write_csv "skip" $index "\n:x: *${python_service_name_list[index]}* is Skip\n"
         exit
     fi
 
-    # 現在のインストール状態を一時保存（通知・pip check時のロールバック用）
-    local now_pkg_list=$(${docker_exec_command} "${python_module_command} pip list --format=freeze")
+    write_csv "skip" $index ""
 
     ${docker_exec_command} "${python_module_command} pip install -U pip"
     local outdated_pkg_list=$(${docker_exec_command} "${python_module_command} pip list --outdated --format=freeze" | awk -F "==" '{print $1}')
@@ -154,25 +146,11 @@ update() {
     ${docker_exec_command} "${python_module_command} pip check"
     status=$?
 
-    status=1
-
-    # TODO:
     # 依存関係が解消されない場合はrequirements.txtを更新せずに再起動で元に戻す
     if [ $status = 1 ]; then
-        write_csv is_rollback $index 1
-        write_csv diff_text $index \\n\`\`\`NODIFF\`\`\`\\n
+        write_csv "is_rollback" $index 1
     else
-        write_csv is_rollback $index 0
-        local updated_pkg_list=$(${docker_exec_command} "${python_module_command} pip list --format=freeze")
-        local diff=$(diff -u <(echo "${now_pkg_list[@]}") <(echo "${updated_pkg_list[@]}") | grep -E '(^-\w|^\+\w)')
-        local tmp_diff=`create_diff_text "$diff" "$index"`
-
-        if [ -z "$tmp_diff" ]; then
-            write_csv diff_text $index \\n\`\`\`NODIFF\`\`\`\\n
-        else
-            write_csv diff_text $index $tmp_diff
-        fi
-
+        write_csv "is_rollback" $index 0
         local error_pkg_info_text=""
 
         # TODO: 関数として切り出し
@@ -186,7 +164,7 @@ update() {
             error_pkg_info_text="${error_pkg_info_text}\`\`\`\n"
         fi
 
-        write_csv error_pkg $index $error_pkg_info_text
+        write_csv "error_pkg" $index $error_pkg_info_text
 
         update_requirements $index
         git_push $index
@@ -223,7 +201,7 @@ restart_docker() {
 # 返り値：生成したテキスト
 create_docker_restart_status_text() {
     local statuses=("$@")
-    local text="\n\n*\`docker restart status\`*\n\n"
+    local text="*\`docker restart status\`*\n"
     local index
 
     for index in ${!statuses[@]}; do
@@ -266,12 +244,15 @@ git_push() {
 
     local commit_link=$(get_commit_link $index)
 
+    # git commitをするためにcdしているため、元に戻す
+    cd "$script_path"
+
     if [ $command_status -eq 0 ]; then
         # git push
-        send_notification "\n:white_check_mark: GitHub pushed ${commit_link}\n"
+        write_csv "git_push" $index ":white_check_mark: GitHub pushed ${commit_link}"
     else
         # git checkout .
-        send_notification "\n:x: git checkout ${commit_link}\n"
+        write_csv "git_push" $index ":x: git checkout ${commit_link}"
     fi
 }
 
@@ -307,18 +288,15 @@ main() {
     eval $command
     wait
 
-    send_notification $(create_notification_text)
-
     local cut_count=$((${#python_service_name_list[@]}+${#python_service_name_list[@]}-1))
     local tmp_restart_docker_statues=$(restart_docker)
     local restart_docker_statues=$(echo ${tmp_restart_docker_statues} | rev | cut -c 1-${cut_count} | rev)
     local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
+    local updated_text=$(aggregate_text_from_csv)
 
-    send_notification "$docker_restart_status_text"
+    send_notification "$updated_text$docker_restart_status_text"
 
-    remove_tmp_files
+    # remove_tmp_files
 }
 
-send_notification "*pip-auto-update START*"
 main
-send_notification "*pip-auto-update END*"
