@@ -2,8 +2,7 @@
 
 . ./.env
 
-# python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
-python_service_name_list=("portfolio-app")
+python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
 script_path=$(cd $(dirname $0); pwd)
 
 # 並列処理の結果を保存する一時ファイルを初期化する
@@ -173,8 +172,8 @@ restart_docker() {
     local pid
 
     for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
-        # cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
-        cd $docker_compose_file_path && docker-compose down && docker-compose up -d &
+        cd $docker_compose_file_path && docker-compose down 1>/dev/null 2>/dev/null && docker-compose build --no-cache 1>/dev/null 2>/dev/null  && docker-compose up -d 1>/dev/null 2>/dev/null &
+        # cd $docker_compose_file_path && docker-compose down 1>/dev/null 2>/dev/null && docker-compose up -d  1>/dev/null 2>/dev/null &
         pids+=($!)
     done
 
@@ -257,10 +256,10 @@ git_push_submodule() {
     local commit_link=$(get_commit_link $index)
 
     if [ $submodule_command_status -ne 0 ]; then
-        # git checkout .
+        git checkout .
         write_csv "git_push_submodule" $index "\`\`\`【checkout】\n${commit_link}\`\`\`"
     else
-        # git push
+        git push
         write_csv "git_push_submodule" $index "\`\`\`【pushed】\n${commit_link}\`\`\`"
     fi
 }
@@ -274,6 +273,9 @@ git_push_aggregate() {
 
     git commit -m "pip-auto-update" > /dev/null
     local latest_commit=$(git show -s --format=%H)
+
+    git push
+    
     echo $latest_commit
 }
 
@@ -300,6 +302,7 @@ check_container() {
 }
 
 main() {
+    # dockerの生存確認
     local result_check_container=$(check_container)
     result_check_container=(`echo $result_check_container`)
 
@@ -315,12 +318,13 @@ main() {
     eval $command
     wait
 
+    # aggregate関連
     local git_push_aggregate_result=$(git_push_aggregate)
     local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
 
+    # docker restart関連
     local cut_count=$((${#python_service_name_list[@]}+${#python_service_name_list[@]}-1))
-    local tmp_restart_docker_statues=$(restart_docker)
-    local restart_docker_statues=$(echo ${tmp_restart_docker_statues} | rev | cut -c 1-${cut_count} | rev)
+    local restart_docker_statues=$(restart_docker)
     local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
 
     local updated_text=$(collect_text_from_csv)
