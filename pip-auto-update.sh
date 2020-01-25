@@ -272,19 +272,14 @@ git_push_aggregate() {
         git add ${repository_name}
     done
 
-    git commit -m "pip-auto-update"
-    cd $aggregate_folder_path
+    git commit -m "pip-auto-update" > /dev/null
     local latest_commit=$(git show -s --format=%H)
-    
-    # git push
-    # TODO: git pushが終わる前にコミット番号を取得しようとしてしまう
-    
-    echo "TMP"
-    # echo $latest_commit
+    echo $latest_commit
 }
 
 create_aggregate_result_text() {
-    local commit_link=$1
+    local commit_hash=$1
+    local commit_link="https://github.com/kentaiwami/aggregate/commit/${commit_hash}"
     echo "\`\`\`【aggregate】\n$commit_link\`\`\`\n"
 }
 
@@ -330,10 +325,9 @@ main() {
 
     local updated_text=$(collect_text_from_csv)
 
-    echo "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
-    # send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
+    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
 
-    # remove_tmp_files
+    remove_tmp_files
 }
 
 main
