@@ -1,6 +1,9 @@
+#!/bin/bash
+
 . ./.env
 
-python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
+# python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
+python_service_name_list=("portfolio-app")
 script_path=$(cd $(dirname $0); pwd)
 
 # 並列処理の結果を保存する一時ファイルを初期化する
@@ -29,7 +32,7 @@ get_file_path() {
         file_path=${TMP_FILE_LIST[0]}
     elif [ $flag = "error_pkg" ]; then
         file_path=${TMP_FILE_LIST[1]}
-    elif [ $flag = "git_push" ]; then
+    elif [ $flag = "git_push_submodule" ]; then
         file_path=${TMP_FILE_LIST[2]}
     elif [ $flag = "skip" ]; then
         file_path=${TMP_FILE_LIST[3]}
@@ -57,14 +60,14 @@ get_value_from_csv() {
 }
 
 # スキップ、git、エラーパッケージ情報をcsvからまとめる
-aggregate_text_from_csv() {
+collect_text_from_csv() {
     local text=""
     local index
 
     for index in "${!python_service_name_list[@]}"; do
         local is_rollback_text=$(get_value_from_csv is_rollback $index 2)
         local err_pkg_text=$(get_value_from_csv error_pkg $index 2)
-        local git_push_text=$(get_value_from_csv git_push $index 2)
+        local git_push_submodule_text=$(get_value_from_csv git_push_submodule $index 2)
         local skip_text=$(get_value_from_csv skip $index 2)
 
         text="${text}*\`${python_service_name_list[index]}\`*\n"
@@ -81,8 +84,8 @@ aggregate_text_from_csv() {
             text="${text}$skip_text\n"
         fi
 
-        if [ -n "$git_push_text" ]; then
-            text="${text}$git_push_text\n"
+        if [ -n "$git_push_submodule_text" ]; then
+            text="${text}$git_push_submodule_text\n"
         fi
 
         text="${text}\n"
@@ -112,8 +115,7 @@ update() {
     local is_skip=$2
     local outdated_pkg
     local error_pkg_info_list=()
-    local docker_exec_command="docker exec -i ${python_service_name_list[index]} bash -c"
-    local python_module_command="python -m"
+    local docker_exec_command="docker exec -i ${python_service_name_list[index]}"
 
     # docker execが失敗するサービスは以降の処理を実施しない
     if [ $is_skip -eq 1 ]; then
@@ -125,24 +127,27 @@ update() {
 
     write_csv "skip" $index ""
 
-    ${docker_exec_command} "${python_module_command} pip install -U pip"
-    local outdated_pkg_list=$(${docker_exec_command} "${python_module_command} pip list --outdated --format=freeze" | awk -F "==" '{print $1}')
+    # TODO: /usr/local/bin/python -m pip install --upgrade pip
+    # これのせいでおそらくエラーパッケージに書き込みがたくさん出てしまっている
+    ${docker_exec_command} python -m pip install -U pip --user
+    
+    local outdated_pkg_list=$(${docker_exec_command} pip list --outdated --format=freeze | awk -F "==" '{print $1}')
     local outdated_pkg_list=(`echo $outdated_pkg_list`)
 
     for outdated_pkg in ${outdated_pkg_list[@]}; do
-        local now_version=$(${docker_exec_command} "${python_module_command} pip list" | grep $outdated_pkg | awk -F " " '{print $2}')
-        local update_error=$(${docker_exec_command} "${python_module_command} pip install -U $outdated_pkg" 2>&1 > /dev/null)
+        local now_version=$(${docker_exec_command} pip list | grep $outdated_pkg | awk -F " " '{print $2}')
+        local update_error=$(${docker_exec_command} pip install -U $outdated_pkg --user 2>&1 > /dev/null)
 
         # pip installでエラーが起きた場合はバージョンを戻す
         if [ -n "$update_error" ]; then
-            ${docker_exec_command} "${python_module_command} pip install "${outdated_pkg}==${now_version}""
+            ${docker_exec_command} pip install "${outdated_pkg}==${now_version}" --user
 
             local tmp_pkg_info="${outdated_pkg}==${now_version}"
             error_pkg_info_list+=($tmp_pkg_info)
         fi
     done
 
-    ${docker_exec_command} "${python_module_command} pip check"
+    ${docker_exec_command} pip check
     status=$?
 
     # 依存関係が解消されない場合はrequirements.txtを更新せずに再起動で元に戻す
@@ -155,7 +160,7 @@ update() {
         write_csv "error_pkg" $index $error_pkg_info_text
 
         update_requirements $index
-        git_push $index
+        git_push_submodule $index
     fi
 }
 
@@ -168,8 +173,8 @@ restart_docker() {
     local pid
 
     for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
-        cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
-        # cd $docker_compose_file_path && docker-compose down && docker-compose up -d &
+        # cd $docker_compose_file_path && docker-compose down && docker-compose build --no-cache && docker-compose up -d &
+        cd $docker_compose_file_path && docker-compose down && docker-compose up -d &
         pids+=($!)
     done
 
@@ -227,7 +232,7 @@ update_requirements() {
     local index=$1
     local file_path="${REQUIREMENTS_FOLDER_PATH_LIST[index]}requirements.txt"
 
-    docker exec -i ${python_service_name_list[index]} bash -c "python -m pip freeze" > $file_path
+    docker exec -i ${python_service_name_list[index]} pip freeze > $file_path
 }
 
 get_commit_link() {
@@ -238,34 +243,56 @@ get_commit_link() {
     echo "https://github.com/kentaiwami/${REPOSITORY_NAME_LIST[index]}/commit/${latest_commit}"
 }
 
-git_push() {
+# サブモジュール内部の更新
+git_push_submodule() {
     local index=$1
     local folder_path=${REQUIREMENTS_FOLDER_PATH_LIST[index]}
     local command_status
 
+    rm -f $aggregate_folder_path.git/modules/${REPOSITORY_NAME_LIST[index]}/COMMIT_EDITMSG
     cd "$folder_path" && git add "requirements.txt" && git commit -m "pip-auto-update"
-
-    command_status=$?
-
+    local submodule_command_status=$?
+    local aggregate_command_status=0
+    
     local commit_link=$(get_commit_link $index)
 
-    # git commitをするためにcdしているため、元に戻す
-    cd "$script_path"
-
-    if [ $command_status -eq 0 ]; then
-        git push
-        write_csv "git_push" $index "\`\`\`【pushed】\n${commit_link}\`\`\`"
+    if [ $submodule_command_status -ne 0 ]; then
+        # git checkout .
+        write_csv "git_push_submodule" $index "\`\`\`【checkout】\n${commit_link}\`\`\`"
     else
-        git checkout .
-        write_csv "git_push" $index "\`\`\`checkout\n${commit_link}\`\`\`"
+        # git push
+        write_csv "git_push_submodule" $index "\`\`\`【pushed】\n${commit_link}\`\`\`"
     fi
+}
+
+git_push_aggregate() {
+    cd $aggregate_folder_path
+
+    for repository_name in ${REPOSITORY_NAME_LIST[@]}; do
+        git add ${repository_name}
+    done
+
+    git commit -m "pip-auto-update"
+    cd $aggregate_folder_path
+    local latest_commit=$(git show -s --format=%H)
+    
+    # git push
+    # TODO: git pushが終わる前にコミット番号を取得しようとしてしまう
+    
+    echo "TMP"
+    # echo $latest_commit
+}
+
+create_aggregate_result_text() {
+    local commit_link=$1
+    echo "\`\`\`【aggregate】\n$commit_link\`\`\`\n"
 }
 
 check_container() {
     local is_running_list=()
 
     for python_service_name in "${python_service_name_list[@]}"; do
-        docker exec -i ${python_service_name} bash -c "python -m pip freeze > /dev/null"
+        docker exec -i ${python_service_name} pip freeze > /dev/null
 
         if [ $? -eq 0 ]; then
             is_running_list+=(0)
@@ -293,15 +320,20 @@ main() {
     eval $command
     wait
 
+    local git_push_aggregate_result=$(git_push_aggregate)
+    local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
+
     local cut_count=$((${#python_service_name_list[@]}+${#python_service_name_list[@]}-1))
     local tmp_restart_docker_statues=$(restart_docker)
     local restart_docker_statues=$(echo ${tmp_restart_docker_statues} | rev | cut -c 1-${cut_count} | rev)
     local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
-    local updated_text=$(aggregate_text_from_csv)
 
-    send_notification "$updated_text$docker_restart_status_text"
+    local updated_text=$(collect_text_from_csv)
 
-    remove_tmp_files
+    echo "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
+    # send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
+
+    # remove_tmp_files
 }
 
 main
