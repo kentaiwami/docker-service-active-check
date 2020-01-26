@@ -170,8 +170,8 @@ restart_docker() {
     local pid
 
     for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
-        cd $docker_compose_file_path && docker-compose down 1>/dev/null 2>/dev/null && docker-compose build --no-cache 1>/dev/null 2>/dev/null  && docker-compose up -d 1>/dev/null 2>/dev/null &
-        # cd $docker_compose_file_path && docker-compose down 1>/dev/null 2>/dev/null && docker-compose up -d  1>/dev/null 2>/dev/null &
+        cd $docker_compose_file_path && /usr/local/bin/docker-compose down 1>/dev/null 2>/dev/null && /usr/local/bin/docker-compose build --no-cache 1>/dev/null 2>/dev/null  && /usr/local/bin/docker-compose up -d 1>/dev/null 2>/dev/null &
+        # cd $docker_compose_file_path && /usr/local/bin/docker-compose down 1>/dev/null 2>/dev/null && /usr/local/bin/docker-compose up -d  1>/dev/null 2>/dev/null &
         pids+=($!)
     done
 
