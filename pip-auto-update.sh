@@ -126,16 +126,14 @@ update() {
 
     write_csv "skip" $index ""
 
-    # TODO: /usr/local/bin/python -m pip install --upgrade pip
-    # これのせいでおそらくエラーパッケージに書き込みがたくさん出てしまっている
-    ${docker_exec_command} python -m pip install -U pip --user
+    ${docker_exec_command} pip install -U pip --user 2>/dev/null
     
     local outdated_pkg_list=$(${docker_exec_command} pip list --outdated --format=freeze | awk -F "==" '{print $1}')
     local outdated_pkg_list=(`echo $outdated_pkg_list`)
 
     for outdated_pkg in ${outdated_pkg_list[@]}; do
         local now_version=$(${docker_exec_command} pip list | grep $outdated_pkg | awk -F " " '{print $2}')
-        local update_error=$(${docker_exec_command} pip install -U $outdated_pkg --user 2>&1 > /dev/null)
+        local update_error=$(${docker_exec_command} pip install -U $outdated_pkg --user 2>&1 > /dev/null | grep ERROR)
 
         # pip installでエラーが起きた場合はバージョンを戻す
         if [ -n "$update_error" ]; then
@@ -275,7 +273,7 @@ git_push_aggregate() {
     local latest_commit=$(git show -s --format=%H)
 
     git push
-    
+
     echo $latest_commit
 }
 
