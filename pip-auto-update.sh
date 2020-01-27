@@ -8,15 +8,15 @@ script_path=$(cd $(dirname $0); pwd)
 # 並列処理の結果を保存する一時ファイルを初期化する
 init_tmp_files() {
     local file_path
-    for file_path in ${TMP_FILE_LIST[@]};do
+    for file_path in ${PIP_TMP_FILE_LIST[@]};do
         : > $file_path
-   done
+    done
 }
 
 # 一時ファイルの削除
 remove_tmp_files() {
     local file_path
-    for file_path in ${TMP_FILE_LIST[@]};do
+    for file_path in ${PIP_TMP_FILE_LIST[@]};do
         rm -f $file_path
     done
 }
@@ -28,13 +28,13 @@ get_file_path() {
     local file_path
 
     if [ $flag = "is_rollback" ]; then
-        file_path=${TMP_FILE_LIST[0]}
+        file_path=${PIP_TMP_FILE_LIST[0]}
     elif [ $flag = "error_pkg" ]; then
-        file_path=${TMP_FILE_LIST[1]}
+        file_path=${PIP_TMP_FILE_LIST[1]}
     elif [ $flag = "git_push_submodule" ]; then
-        file_path=${TMP_FILE_LIST[2]}
+        file_path=${PIP_TMP_FILE_LIST[2]}
     elif [ $flag = "skip" ]; then
-        file_path=${TMP_FILE_LIST[3]}
+        file_path=${PIP_TMP_FILE_LIST[3]}
     fi
 
     echo $file_path
@@ -169,7 +169,7 @@ restart_docker() {
     local flag=()
     local pid
 
-    for docker_compose_file_path in ${DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
+    for docker_compose_file_path in ${PIP_DOCKER_COMPOSE_FILE_PATH_LIST[@]}; do
         cd $docker_compose_file_path && /usr/local/bin/docker-compose down 1>/dev/null 2>/dev/null && /usr/local/bin/docker-compose build --no-cache 1>/dev/null 2>/dev/null  && /usr/local/bin/docker-compose up -d 1>/dev/null 2>/dev/null &
         # cd $docker_compose_file_path && /usr/local/bin/docker-compose down 1>/dev/null 2>/dev/null && /usr/local/bin/docker-compose up -d  1>/dev/null 2>/dev/null &
         pids+=($!)
@@ -237,7 +237,7 @@ get_commit_link() {
     local folder_path=${REQUIREMENTS_FOLDER_PATH_LIST[index]}
     local latest_commit=$(cd ${folder_path} && git show -s --format=%H)
 
-    echo "https://github.com/kentaiwami/${REPOSITORY_NAME_LIST[index]}/commit/${latest_commit}"
+    echo "https://github.com/kentaiwami/${PIP_REPOSITORY_NAME_LIST[index]}/commit/${latest_commit}"
 }
 
 # サブモジュール内部の更新
@@ -246,7 +246,7 @@ git_push_submodule() {
     local folder_path=${REQUIREMENTS_FOLDER_PATH_LIST[index]}
     local command_status
 
-    rm -f $aggregate_folder_path.git/modules/${REPOSITORY_NAME_LIST[index]}/COMMIT_EDITMSG
+    rm -f $aggregate_folder_path.git/modules/${PIP_REPOSITORY_NAME_LIST[index]}/COMMIT_EDITMSG
     cd "$folder_path" && git add "requirements.txt" && git commit -m "pip-auto-update"
     local submodule_command_status=$?
     local aggregate_command_status=0
@@ -265,7 +265,7 @@ git_push_submodule() {
 git_push_aggregate() {
     cd $aggregate_folder_path
 
-    for repository_name in ${REPOSITORY_NAME_LIST[@]}; do
+    for repository_name in ${PIP_REPOSITORY_NAME_LIST[@]}; do
         git add ${repository_name}
     done
 
@@ -321,7 +321,6 @@ main() {
     local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
 
     # docker restart関連
-    local cut_count=$((${#python_service_name_list[@]}+${#python_service_name_list[@]}-1))
     local restart_docker_statues=$(restart_docker)
     local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
 
