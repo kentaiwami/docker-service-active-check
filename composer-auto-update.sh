@@ -44,25 +44,27 @@ update() {
 
     sudo /usr/local/bin/composer self-update --stable
 
-    cd ${COMPOSER_JSON_FOLDER_PATH_LIST} && composer update --dry-run
+    cd ${COMPOSER_JSON_FOLDER_PATH_LIST} && /usr/local/bin/composer update --dry-run
 
     dry_run_command_status=$?
 
-    echo $dry_run_command_status
-
     if [ $dry_run_command_status -eq 0 ]; then
-        composer clear-cache
-        composer update
+        /usr/local/bin/composer clear-cache
+        /usr/local/bin/composer update
         update_command_status=$?
 
         if [ $update_command_status -eq 0 ];then
             git_push_submodule $index
             write_csv "is_rollback" $index 0
         else
+            write_csv "is_rollback" $index 0
             write_csv "skip" $index "\n:x: *${composer_service_name_list[index]}* is skip. Composer update error.\n"
+            write_csv "git_push_submodule" $index ""
         fi
     else
+        write_csv "is_rollback" $index 0
         write_csv "skip" $index "\n:x: *${composer_service_name_list[index]}* is skip. Composer update error.\n"
+        write_csv "git_push_submodule" $index ""
     fi
 }
 
