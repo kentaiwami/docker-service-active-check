@@ -1,17 +1,9 @@
 #!/bin/bash
 
-. ./.env
+. ./common.sh
 
 python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
 script_path=$(cd $(dirname $0); pwd)
-
-# 並列処理の結果を保存する一時ファイルを初期化する
-init_tmp_files() {
-    local file_path
-    for file_path in ${PIP_TMP_FILE_LIST[@]};do
-        : > $file_path
-    done
-}
 
 # 一時ファイルの削除
 remove_tmp_files() {
@@ -283,25 +275,9 @@ create_aggregate_result_text() {
     echo "\`\`\`【aggregate】\n$commit_link\`\`\`\n"
 }
 
-check_container() {
-    local is_running_list=()
-
-    for python_service_name in "${python_service_name_list[@]}"; do
-        docker exec -i ${python_service_name} pip freeze > /dev/null
-
-        if [ $? -eq 0 ]; then
-            is_running_list+=(0)
-        else
-            is_running_list+=(1)
-        fi
-    done
-
-    echo ${is_running_list[@]}
-}
-
 main() {
     # dockerの生存確認
-    local result_check_container=$(check_container)
+    local result_check_container=$(check_container "pip freeze" ${python_service_name_list[@]})
     result_check_container=(`echo $result_check_container`)
 
     local command=""
@@ -309,26 +285,26 @@ main() {
 
     init_tmp_files
 
-    for index in "${!python_service_name_list[@]}"; do
-        command="${command}update ${index} ${result_check_container[index]} & "
-    done
+    # for index in "${!python_service_name_list[@]}"; do
+    #     command="${command}update ${index} ${result_check_container[index]} & "
+    # done
 
-    eval $command
-    wait
+    # eval $command
+    # wait
 
-    # aggregate関連
-    local git_push_aggregate_result=$(git_push_aggregate)
-    local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
+    # # aggregate関連
+    # local git_push_aggregate_result=$(git_push_aggregate)
+    # local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
 
-    # docker restart関連
-    local restart_docker_statues=$(restart_docker)
-    local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
+    # # docker restart関連
+    # local restart_docker_statues=$(restart_docker)
+    # local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
 
-    local updated_text=$(collect_text_from_csv)
+    # local updated_text=$(collect_text_from_csv)
 
-    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
+    # send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
 
-    remove_tmp_files
+    # remove_tmp_files
 }
 
 main

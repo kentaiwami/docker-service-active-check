@@ -4,22 +4,6 @@
 
 composer_service_name_list=("sumolog-app")
 
-check_container() {
-    local is_running_list=()
-
-    for composer_service_name in "${composer_service_name_list[@]}"; do
-        docker exec -i ${composer_service_name} composer show -i 1>/dev/null 2>/dev/null
-
-        if [ $? -eq 0 ]; then
-            is_running_list+=(0)
-        else
-            is_running_list+=(1)
-        fi
-    done
-
-    echo ${is_running_list[@]}
-}
-
 # 並列処理の結果を保存する一時ファイルを初期化する
 init_tmp_files() {
     local file_path
