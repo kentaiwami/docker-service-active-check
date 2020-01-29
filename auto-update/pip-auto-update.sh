@@ -5,14 +5,6 @@
 python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
 script_path=$(cd $(dirname $0); pwd)
 
-# 一時ファイルの削除
-remove_tmp_files() {
-    local file_path
-    for file_path in ${PIP_TMP_FILE_LIST[@]};do
-        rm -f $file_path
-    done
-}
-
 # 第一引数のフラグをもとに一時ファイルのパスを取得する
 # 引数：$1（is_rollback, error_pkg, git）
 get_file_path() {

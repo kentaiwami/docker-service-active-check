@@ -33,3 +33,10 @@ init_tmp_files() {
         : > $file_path
     done
 }
+
+remove_tmp_files() {
+    local file_path
+    for file_path in ${PIP_TMP_FILE_LIST[@]};do
+        rm -f $file_path
+    done
+}
