@@ -105,7 +105,7 @@ get_value_from_csv() {
 }
 
 collect_text_from_csv() {
-    local service_names=("$*")
+    local service_names=("$@")
     local text=""
     local index
 
