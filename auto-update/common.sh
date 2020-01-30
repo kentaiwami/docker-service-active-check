@@ -199,8 +199,9 @@ git_push_aggregate() {
 #                  テキスト
 # *******************************************
 create_docker_restart_status_text() {
-    local service_name=$1
-    local statuses=(${@:2})
+    local service_count=$1
+    local service_names=(${@:2:($#-$service_count-1)})
+    local statuses=(${@:$service_count+2})
     local text="*\`docker restart status\`*\n\n"
     local index
 
@@ -212,7 +213,7 @@ create_docker_restart_status_text() {
             mark=":x:"
         fi
 
-        text="${text}${mark} *$service_name*\n\n"
+        text="${text}${mark} *${service_names[index]}*\n\n"
     done
 
     echo $text

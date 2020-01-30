@@ -105,7 +105,7 @@ main() {
 
     # docker restart関連
     local restart_docker_statues=$(restart_docker ${PIP_DOCKER_COMPOSE_FILE_PATH_LIST[@]})
-    local docker_restart_status_text=$(create_docker_restart_status_text ${python_service_name_list[index]} ${restart_docker_statues[@]})
+    local docker_restart_status_text=$(create_docker_restart_status_text ${#python_service_name_list[@]} ${python_service_name_list[@]} ${restart_docker_statues[@]})
 
     local updated_text=$(collect_text_from_csv ${python_service_name_list[@]})
 
