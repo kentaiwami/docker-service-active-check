@@ -222,7 +222,7 @@ create_docker_restart_status_text() {
 create_aggregate_result_text() {
     local commit_hash=$1
     local commit_link="https://github.com/kentaiwami/aggregate/commit/${commit_hash}"
-    echo "\`\`\`【aggregate】\n$commit_link\`\`\`\n"
+    echo "*\`aggregate\`*\`\`\`【aggregate】\n$commit_link\`\`\`\n\n"
 }
 
 
