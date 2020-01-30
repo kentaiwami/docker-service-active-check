@@ -47,6 +47,7 @@ restart_docker() {
 }
 
 
+
 # *******************************************
 #                  ファイル
 # *******************************************
@@ -139,6 +140,7 @@ collect_text_from_csv() {
 }
 
 
+
 # *******************************************
 #                  GitHub
 # *******************************************
@@ -154,7 +156,7 @@ git_push_submodule() {
     local submodule_command_status=$?
     local aggregate_command_status=0
     
-    local commit_link=$(get_commit_link $index)
+    local commit_link=$(get_commit_link $index $folder_path $module_name)
 
     if [ $submodule_command_status -ne 0 ]; then
         git checkout .
@@ -191,12 +193,6 @@ git_push_aggregate() {
     echo $latest_commit
 }
 
-create_aggregate_result_text() {
-    local commit_hash=$1
-    local commit_link="https://github.com/kentaiwami/aggregate/commit/${commit_hash}"
-    echo "\`\`\`【aggregate】\n$commit_link\`\`\`\n"
-}
-
 
 
 # *******************************************
@@ -221,6 +217,13 @@ create_docker_restart_status_text() {
 
     echo $text
 }
+
+create_aggregate_result_text() {
+    local commit_hash=$1
+    local commit_link="https://github.com/kentaiwami/aggregate/commit/${commit_hash}"
+    echo "\`\`\`【aggregate】\n$commit_link\`\`\`\n"
+}
+
 
 
 # *******************************************
