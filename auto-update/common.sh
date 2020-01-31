@@ -53,14 +53,14 @@ restart_docker() {
 # *******************************************
 init_tmp_files() {
     local file_path
-    for file_path in ${PIP_TMP_FILE_LIST[@]};do
+    for file_path in ${TMP_FILE_LIST[@]};do
         : > $file_path
     done
 }
 
 remove_tmp_files() {
     local file_path
-    for file_path in ${PIP_TMP_FILE_LIST[@]};do
+    for file_path in ${TMP_FILE_LIST[@]};do
         rm -f $file_path
     done
 }
@@ -77,13 +77,13 @@ get_file_path() {
     local file_path
 
     if [ $flag = "is_rollback" ]; then
-        file_path=${PIP_TMP_FILE_LIST[0]}
+        file_path=${TMP_FILE_LIST[0]}
     elif [ $flag = "error_pkg" ]; then
-        file_path=${PIP_TMP_FILE_LIST[1]}
+        file_path=${TMP_FILE_LIST[1]}
     elif [ $flag = "git_push_submodule" ]; then
-        file_path=${PIP_TMP_FILE_LIST[2]}
+        file_path=${TMP_FILE_LIST[2]}
     elif [ $flag = "skip" ]; then
-        file_path=${PIP_TMP_FILE_LIST[3]}
+        file_path=${TMP_FILE_LIST[3]}
     fi
 
     echo $file_path

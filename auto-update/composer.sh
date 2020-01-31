@@ -74,7 +74,7 @@ main() {
 
     send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
 
-    remove_tmp_files
+    # remove_tmp_files
 }
 
 main
