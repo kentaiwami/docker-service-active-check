@@ -47,7 +47,7 @@ update() {
 
 main() {
     # dockerの生存確認
-    local result_check_container=$(check_container)
+    local result_check_container=$(check_container "composer show -i" ${composer_service_name_list[@]})
     result_check_container=(`echo $result_check_container`)
 
     local command=""
