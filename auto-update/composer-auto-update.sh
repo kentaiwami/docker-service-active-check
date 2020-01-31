@@ -70,7 +70,7 @@ main() {
     local restart_docker_statues=$(restart_docker ${COMPOSER_DOCKER_COMPOSE_FILE_PATH_LIST[@]})
     local docker_restart_status_text=$(create_docker_restart_status_text ${#composer_service_name_list[@]} ${composer_service_name_list[@]} ${restart_docker_statues[@]})
 
-    local updated_text=$(collect_text_from_csv)
+    local updated_text=$(collect_text_from_csv ${composer_service_name_list[@]})
 
     send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
 
