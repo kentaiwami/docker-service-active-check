@@ -63,7 +63,7 @@ main() {
     wait
 
     # # aggregate関連
-    local git_push_aggregate_result=$(git_push_aggregate)
+    local git_push_aggregate_result=$(git_push_aggregate ${COMPOSER_REPOSITORY_NAME_LIST[@]})
     local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
 
     # # docker restart関連
