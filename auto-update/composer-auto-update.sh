@@ -23,15 +23,15 @@ update() {
 
     cd ${COMPOSER_JSON_FOLDER_PATH_LIST} && /usr/local/bin/composer update --dry-run
 
-    dry_run_command_status=$?
+    local dry_run_command_status=$?
 
     if [ $dry_run_command_status -eq 0 ]; then
         /usr/local/bin/composer clear-cache
         /usr/local/bin/composer update
-        update_command_status=$?
+        local update_command_status=$?
 
         if [ $update_command_status -eq 0 ];then
-            git_push_submodule $index
+            git_push_submodule $index ${COMPOSER_JSON_FOLDER_PATH_LIST[index]} ${COMPOSER_REPOSITORY_NAME_LIST[index]}
             write_csv "is_rollback" $index 0
         else
             write_csv "is_rollback" $index 0
