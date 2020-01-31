@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. ./.env
+. ./common.sh
+. ../.env
 
 composer_service_name_list=("sumolog-app")
 
