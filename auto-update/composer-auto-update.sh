@@ -62,13 +62,13 @@ main() {
     eval $command
     wait
 
-    # # aggregate関連
+    # aggregate関連
     local git_push_aggregate_result=$(git_push_aggregate ${COMPOSER_REPOSITORY_NAME_LIST[@]})
     local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
 
-    # # docker restart関連
-    local restart_docker_statues=$(restart_docker)
-    local docker_restart_status_text=$(create_docker_restart_status_text ${restart_docker_statues[@]})
+    # docker restart関連
+    local restart_docker_statues=$(restart_docker ${COMPOSER_DOCKER_COMPOSE_FILE_PATH_LIST[@]})
+    local docker_restart_status_text=$(create_docker_restart_status_text ${#composer_service_name_list[@]} ${composer_service_name_list[@]} ${restart_docker_statues[@]})
 
     local updated_text=$(collect_text_from_csv)
 
