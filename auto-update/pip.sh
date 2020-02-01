@@ -6,8 +6,6 @@
 service_names=("portfolio-app" "finote-app" "shifree-app")
 script_path=$(cd $(dirname $0); pwd)
 
-main ${#service_names[@]} "pip freeze" "pip-auto-update" "https://img.icons8.com/color/480/000000/python.png" ${service_names[@]} ${PIP_REPOSITORY_NAME_LIST[@]} ${PIP_DOCKER_COMPOSE_FILE_PATH_LIST[@]}
-
 update_requirements() {
     local index=$1
     local file_path="${REQUIREMENTS_FOLDER_PATH_LIST[index]}requirements.txt"
@@ -83,3 +81,5 @@ create_error_pkg_text() {
 
     echo $error_pkg_info_text
 }
+
+main ${#service_names[@]} "pip freeze" "pip-auto-update" "https://img.icons8.com/color/480/000000/python.png" ${service_names[@]} ${PIP_REPOSITORY_NAME_LIST[@]} ${PIP_DOCKER_COMPOSE_FILE_PATH_LIST[@]}

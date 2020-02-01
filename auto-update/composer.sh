@@ -3,17 +3,17 @@
 . ./common.sh
 . ../.env
 
-composer_service_name_list=("sumolog-app")
+service_names=("sumolog-app")
 
 update() {
     local index=$1
     local is_skip=$2
-    local docker_exec_command="docker exec -i ${composer_service_name_list[index]}"
+    local docker_exec_command="docker exec -i ${service_names[index]}"
 
     # docker execが失敗するサービスは以降の処理を実施しない
     if [ $is_skip -eq 1 ]; then
         write_csv "is_rollback" $index 0
-        write_csv "skip" $index "\n:x: *${composer_service_name_list[index]}* is Skip\n"
+        write_csv "skip" $index "\n:x: *${service_names[index]}* is Skip\n"
         exit
     fi
 
@@ -35,46 +35,14 @@ update() {
             write_csv "is_rollback" $index 0
         else
             write_csv "is_rollback" $index 0
-            write_csv "skip" $index "\n:x: *${composer_service_name_list[index]}* is skip. Composer update error.\n"
+            write_csv "skip" $index "\n:x: *${service_names[index]}* is skip. Composer update error.\n"
             write_csv "git_push_submodule" $index ""
         fi
     else
         write_csv "is_rollback" $index 0
-        write_csv "skip" $index "\n:x: *${composer_service_name_list[index]}* is skip. Composer update error.\n"
+        write_csv "skip" $index "\n:x: *${service_names[index]}* is skip. Composer update error.\n"
         write_csv "git_push_submodule" $index ""
     fi
 }
 
-main() {
-    # dockerの生存確認
-    local result_check_container=$(check_container "composer show -i" ${composer_service_name_list[@]})
-    result_check_container=(`echo $result_check_container`)
-
-    local command=""
-    local index
-
-    init_tmp_files
-
-    for index in "${!composer_service_name_list[@]}"; do
-        command="${command}update ${index} ${result_check_container[index]} & "
-    done
-
-    eval $command
-    wait
-
-    # aggregate関連
-    local git_push_aggregate_result=$(git_push_aggregate ${COMPOSER_REPOSITORY_NAME_LIST[@]})
-    local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
-
-    # docker restart関連
-    local restart_docker_statues=$(restart_docker ${COMPOSER_DOCKER_COMPOSE_FILE_PATH_LIST[@]})
-    local docker_restart_status_text=$(create_docker_restart_status_text ${#composer_service_name_list[@]} ${composer_service_name_list[@]} ${restart_docker_statues[@]})
-
-    local updated_text=$(collect_text_from_csv ${composer_service_name_list[@]})
-
-    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text" "composer-auto-update" "https://getcomposer.org/img/logo-composer-transparent.png"
-
-    remove_tmp_files
-}
-
-main
+main ${#service_names[@]} "composer show -i" "composer-auto-update" "https://getcomposer.org/img/logo-composer-transparent.png" ${service_names[@]} ${COMPOSER_REPOSITORY_NAME_LIST[@]} ${COMPOSER_DOCKER_COMPOSE_FILE_PATH_LIST[@]}
