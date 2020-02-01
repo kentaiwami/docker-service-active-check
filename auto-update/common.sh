@@ -246,3 +246,49 @@ send_notification() {
 
     curl -s -S -X POST -d "${payload}" ${SLACK_AUTO_UPDATE_URL} > /dev/null
 }
+
+
+
+# *******************************************
+#                  main
+# *******************************************
+main() {
+    local base_arg_num=5
+    local array_count=$1
+    local check_command=$2
+    local bot_name=$3
+    local bot_icon_url=$4
+    local service_names=(${@:$base_arg_num:$array_count})
+    local repository_names=(${@:$base_arg_num+$array_count:$array_count})
+    local docker_compose_file_paths=(${@:$base_arg_num+$array_count+$array_count:$array_count})
+
+    # dockerの生存確認
+    local result_check_container=$(check_container "$check_command" ${service_names[@]})
+    result_check_container=(`echo $result_check_container`)
+
+    local command=""
+    local index
+
+    init_tmp_files
+
+    for index in "${!service_names[@]}"; do
+        command="${command}update ${index} ${result_check_container[index]} & "
+    done
+
+    eval $command
+    wait
+
+    # aggregate関連
+    local git_push_aggregate_result=$(git_push_aggregate ${repository_names[@]})
+    local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
+
+    # docker restart関連
+    local restart_docker_statues=$(restart_docker ${docker_compose_file_paths[@]})
+    local docker_restart_status_text=$(create_docker_restart_status_text ${#service_names[@]} ${service_names[@]} ${restart_docker_statues[@]})
+
+    local updated_text=$(collect_text_from_csv ${service_names[@]})
+
+    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text" "$bot_name" "$bot_icon_url"
+
+    remove_tmp_files
+}

@@ -3,14 +3,14 @@
 . ./common.sh
 . ../.env
 
-python_service_name_list=("portfolio-app" "finote-app" "shifree-app")
+service_names=("portfolio-app" "finote-app" "shifree-app")
 script_path=$(cd $(dirname $0); pwd)
 
 update_requirements() {
     local index=$1
     local file_path="${REQUIREMENTS_FOLDER_PATH_LIST[index]}requirements.txt"
 
-    docker exec -i ${python_service_name_list[index]} pip freeze > $file_path
+    docker exec -i ${service_names[index]} pip freeze > $file_path
 }
 
 update() {
@@ -18,13 +18,13 @@ update() {
     local is_skip=$2
     local outdated_pkg
     local error_pkg_info_list=()
-    local docker_exec_command="docker exec -i ${python_service_name_list[index]}"
+    local docker_exec_command="docker exec -i ${service_names[index]}"
 
     # docker execが失敗するサービスは以降の処理を実施しない
     if [ $is_skip -eq 1 ]; then
         write_csv "error_pkg" $index ""
         write_csv "is_rollback" $index 0
-        write_csv "skip" $index "\n:x: *${python_service_name_list[index]}* is Skip\n"
+        write_csv "skip" $index "\n:x: *${service_names[index]}* is Skip\n"
         exit
     fi
 
@@ -82,36 +82,4 @@ create_error_pkg_text() {
     echo $error_pkg_info_text
 }
 
-main() {
-    # dockerの生存確認
-    local result_check_container=$(check_container "pip freeze" ${python_service_name_list[@]})
-    result_check_container=(`echo $result_check_container`)
-
-    local command=""
-    local index
-
-    init_tmp_files
-
-    for index in "${!python_service_name_list[@]}"; do
-        command="${command}update ${index} ${result_check_container[index]} & "
-    done
-
-    eval $command
-    wait
-
-    # aggregate関連
-    local git_push_aggregate_result=$(git_push_aggregate ${PIP_REPOSITORY_NAME_LIST[@]})
-    local git_push_aggregate_result_text=$(create_aggregate_result_text $git_push_aggregate_result)
-
-    # docker restart関連
-    local restart_docker_statues=$(restart_docker ${PIP_DOCKER_COMPOSE_FILE_PATH_LIST[@]})
-    local docker_restart_status_text=$(create_docker_restart_status_text ${#python_service_name_list[@]} ${python_service_name_list[@]} ${restart_docker_statues[@]})
-
-    local updated_text=$(collect_text_from_csv ${python_service_name_list[@]})
-
-    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text" "pip-auto-update" "https://img.icons8.com/color/480/000000/python.png"
-
-    remove_tmp_files
-}
-
-main
+main ${#service_names[@]} "pip freeze" "pip-auto-update" "https://img.icons8.com/color/480/000000/python.png" ${service_names[@]} ${PIP_REPOSITORY_NAME_LIST[@]} ${PIP_DOCKER_COMPOSE_FILE_PATH_LIST[@]}
