@@ -72,9 +72,9 @@ main() {
 
     local updated_text=$(collect_text_from_csv ${composer_service_name_list[@]})
 
-    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text"
+    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text" "composer-auto-update" "https://getcomposer.org/img/logo-composer-transparent.png"
 
-    # remove_tmp_files
+    remove_tmp_files
 }
 
 main
