@@ -1,26 +1,11 @@
 . ./.env
+. ./send_slack.sh
 
 docker_service_names=("sumolog" "shifree" "portfolio" "portfolio-redirect" "finote" "phpmyadmin" "letsencrypt" "proxy")
 health_check_endpoint_service_names=(`echo ${docker_service_names[@]} | awk '{print $1}{print $2}{print $3}{print $4}{print $5}{print $6}'`)
 ok_list=()
 ng_list=()
 cause_list=()
-
-send_notification() {
-    local text=$1
-    local channel=${channel:-'#health-check'}
-    local botname=${botname:-'health-check'}
-    local emoji=${emoji:-':heartpulse:'}
-    local message=`echo ${text}`
-    local payload="payload={
-        \"channel\": \"${channel}\",
-        \"username\": \"${botname}\",
-        \"icon_emoji\": \"${emoji}\",
-        \"text\": \"${message}\"
-    }"
-
-    curl -s -S -X POST -d "${payload}" ${SLACK_HEALTH_CHECK_URL} > /dev/null
-}
 
 run_docker_process_command() {
     local service_name=$1
@@ -101,7 +86,7 @@ main() {
     check_http_status
     local http_status_text=$(create_text)
 
-    send_notification "*\`docker container status\`*\n$docker_container_status_text\n*\`http status\`*\n$http_status_text"
+    send_notification "*\`docker container status\`*\n$docker_container_status_text\n*\`http status\`*\n$http_status_text" "health-check" "https://img.icons8.com/flat_round/64/000000/hearts.png" "#health-check" "$SLACK_HEALTH_CHECK_URL"
 }
 
 main

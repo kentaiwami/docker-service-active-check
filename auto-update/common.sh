@@ -1,4 +1,5 @@
 . ../.env
+. ../send_slack.sh
 
 # *******************************************
 #                  コンテナ
@@ -226,29 +227,6 @@ create_aggregate_result_text() {
 }
 
 
-
-# *******************************************
-#                  Slack
-# *******************************************
-send_notification() {
-    local text=$1
-    local tmp_botname=$2
-    local tmp_icon_url=$3
-    local channel=${channel:-'#auto-update'}
-    local botname=${botname:-$tmp_botname}
-    local icon_url=${icon_url:-$tmp_icon_url}
-    local payload="payload={
-        \"channel\": \"${channel}\",
-        \"username\": \"${botname}\",
-        \"icon_url\": \"${icon_url}\",
-        \"text\": \"${text}\"
-    }"
-
-    curl -s -S -X POST -d "${payload}" ${SLACK_AUTO_UPDATE_URL} > /dev/null
-}
-
-
-
 # *******************************************
 #                  main
 # *******************************************
@@ -258,6 +236,7 @@ main() {
     local check_command=$2
     local bot_name=$3
     local bot_icon_url=$4
+    local channel="#auto-update"
     local service_names=(${@:$base_arg_num:$array_count})
     local repository_names=(${@:$base_arg_num+$array_count:$array_count})
     local docker_compose_file_paths=(${@:$base_arg_num+$array_count+$array_count:$array_count})
@@ -288,7 +267,6 @@ main() {
 
     local updated_text=$(collect_text_from_csv ${service_names[@]})
 
-    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text" "$bot_name" "$bot_icon_url"
-
+    send_notification "$updated_text$git_push_aggregate_result_text$docker_restart_status_text" "$bot_name" "$bot_icon_url" $channel "$SLACK_AUTO_UPDATE_URL"
     remove_tmp_files
 }
