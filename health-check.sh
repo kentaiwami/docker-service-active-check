@@ -1,7 +1,7 @@
 . ./.env
 . ./send_slack.sh
 
-docker_service_names=("sumolog" "shifree" "portfolio" "portfolio-redirect" "finote" "phpmyadmin" "letsencrypt" "proxy")
+docker_service_names=("sumolog" "portfolio" "portfolio-redirect" "finote" "phpmyadmin" "letsencrypt" "proxy")
 health_check_endpoint_service_names=(`echo ${docker_service_names[@]} | awk '{print $1}{print $2}{print $3}{print $4}{print $5}{print $6}'`)
 ok_list=()
 ng_list=()

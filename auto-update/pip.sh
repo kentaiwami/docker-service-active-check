@@ -3,7 +3,7 @@
 . ./common.sh
 . ../.env
 
-service_names=("portfolio-app" "finote-app" "shifree-app")
+service_names=("portfolio-app" "finote-app")
 script_path=$(cd $(dirname $0); pwd)
 
 update_requirements() {
